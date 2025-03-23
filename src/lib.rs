@@ -40,24 +40,24 @@ impl DLHashes {
         self.hashes.push((hash_type, hash_value));
         self
     }
-    pub fn sha1(mut self, hash: String) -> Self {
-        self.hashes.push((DLHashType::SHA1, hash));
+    pub fn sha1(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA1, hash.to_string()));
         self
     }
-    pub fn sha256(mut self, hash: String) -> Self {
-        self.hashes.push((DLHashType::SHA256, hash));
+    pub fn sha256(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA256, hash.to_string()));
         self
     }
-    pub fn sha384(mut self, hash: String) -> Self {
-        self.hashes.push((DLHashType::SHA384, hash));
+    pub fn sha384(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA384, hash.to_string()));
         self
     }
-    pub fn sha512(mut self, hash: String) -> Self {
-        self.hashes.push((DLHashType::SHA512, hash));
+    pub fn sha512(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA512, hash.to_string()));
         self
     }
-    pub fn sha224(mut self, hash: String) -> Self {
-        self.hashes.push((DLHashType::SHA224, hash));
+    pub fn sha224(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA224, hash.to_string()));
         self
     }
     pub fn verify_data(&self, data: &[u8]) -> bool {
