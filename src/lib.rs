@@ -7,10 +7,16 @@ use std::{
     sync::Arc,
 };
 
+use decompress::DLDecompressionConfig;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use sha1::Digest;
-use sha2::Sha512;
+use sha1::{Digest, Sha1};
+use sha2::{Sha224, Sha256, Sha384, Sha512};
 use smol::{Executor, io::AsyncReadExt, lock::Semaphore};
+use surf::Client;
+
+#[cfg(feature = "decompress")]
+pub mod decompress;
+mod redirection_middleware;
 
 /// Struct in which all the files to be downloaded are set up
 pub struct DLBuilder {
@@ -24,95 +30,110 @@ pub struct DLFile {
     /// URL of the file to be downloaded
     pub url: String,
     /// Hashes of the file
-    pub hashes: Option<DLHashes>,
+    pub hashes: DLHashes,
     /// Path to save the file
     pub path: String,
+    /// decompression configuration
+    #[cfg(feature = "decompress")]
+    pub decompression_config: Option<decompress::DLDecompressionConfig>,
 }
-/// Hashes of the file
 #[derive(Debug, Clone)]
 pub struct DLHashes {
-    /// SHA-1 hash of the file
-    pub sha1: String,
-    /// SHA-512 hash of the file
-    pub sha512: String,
+    pub hashes: Vec<(DLHashType, String)>,
 }
-
 impl DLHashes {
-    /// Create a new instance of DLHashes
-    pub fn new(sha1: &str, sha512: &str) -> Self {
-        DLHashes {
-            sha1: sha1.to_string(),
-            sha512: sha512.to_string(),
-        }
+    pub fn new() -> Self {
+        Self { hashes: Vec::new() }
     }
-    /// Get the SHA-1 hash of the file
-    pub fn sha1(&self) -> &str {
-        &self.sha1
+    pub fn add_hash(mut self, hash_type: DLHashType, hash_value: String) -> Self {
+        self.hashes.push((hash_type, hash_value));
+        self
     }
-    /// Get the SHA-512 hash of the file
-    pub fn sha512(&self) -> &str {
-        &self.sha512
+    pub fn sha1(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA1, hash.to_string()));
+        self
     }
-    /// Verify the SHA-1 hash of the file
-    pub fn verify_sha1(&self, file: String, file_size: u64) -> bool {
-        // open the file
-        let mut file = File::open(file).unwrap();
-        // initialize the hasher
-        let mut hasher = sha1::Sha1::new();
-        // initialize the buffer
-        let mut buffer = vec![0; file_size as usize];
-        // number of bytes readed
-        let mut total_read = 0;
-
-        loop {
-            // read the file into the buffer
-            let read = file.read(&mut buffer).unwrap();
-            if read == 0 {
-                // if the reader is empty, file is readed
-                break;
-            }
-            total_read += read as u64;
-            // generate the hash of the buffer
-            hasher.update(&buffer[..read]);
-        }
-        // check if the file size matches the expected size
-        // check if the hashes match
-        total_read == file_size && hex::encode(hasher.finalize().to_vec()) == self.sha1
+    pub fn sha256(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA256, hash.to_string()));
+        self
     }
-    /// Verify the SHA-512 hash of the file
-    pub fn verify_sha512(&self, file: String, file_size: u64) -> bool {
-        // open the file
-        let mut file = File::open(file).unwrap();
-        // initialize the hasher
-        let mut hasher = Sha512::new();
-        // initialize the buffer
-        let mut buffer = vec![0; file_size as usize];
-        // number of bytes readed
-        let mut total_read = 0;
-
-        loop {
-            // read the file into the buffer
-            let read = file.read(&mut buffer).unwrap();
-            if read == 0 {
-                // if the reader is empty, file is readed
-                break;
-            }
-            total_read += read as u64;
-            // generate the hash of the buffer
-            hasher.update(&buffer[..read]);
-        }
-        // check if the file size matches the expected size
-        // check if the hashes match
-        total_read == file_size && hex::encode(hasher.finalize().to_vec()) == self.sha512
+    pub fn sha384(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA384, hash.to_string()));
+        self
     }
-    /// Verify all the hashes of the file
-    pub fn verify(&self, file: String, file_size: u64) -> bool {
-        self.verify_sha1(file.clone(), file_size) && self.verify_sha512(file.clone(), file_size)
+    pub fn sha512(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA512, hash.to_string()));
+        self
+    }
+    pub fn sha224(mut self, hash: &str) -> Self {
+        self.hashes.push((DLHashType::SHA224, hash.to_string()));
+        self
+    }
+    pub fn verify_data(&self, data: &[u8]) -> bool {
+        self.hashes
+            .iter()
+            .find(|hashed| {
+                let (typ, hash) = hashed;
+                typ.verify_data(data, hash)
+            })
+            .is_some()
+    }
+    pub fn verify_str(&self, data: &str) -> bool {
+        self.verify_data(data.as_bytes())
+    }
+    pub fn verify_file(&self, path: &str) -> bool {
+        let data = std::fs::read(path).unwrap();
+        self.verify_data(&data)
     }
 }
+
+#[derive(Debug, Clone)]
+pub enum DLHashType {
+    SHA1,
+    SHA256,
+    SHA224,
+    SHA384,
+    SHA512,
+}
+
+impl DLHashType {
+    /// Función genérica que crea el hasher, actualiza con los datos y devuelve el hash en hexadecimal.
+    fn compute_hash<D: Digest + Default>(data: &[u8]) -> String {
+        let mut hasher = D::default();
+        hasher.update(data);
+        let result = hasher.finalize();
+        hex::encode(result)
+    }
+
+    /// Calcula el hash usando el algoritmo seleccionado.
+    pub fn compute(&self, data: &[u8]) -> String {
+        match self {
+            DLHashType::SHA1 => Self::compute_hash::<Sha1>(data),
+            DLHashType::SHA256 => Self::compute_hash::<Sha256>(data),
+            DLHashType::SHA224 => Self::compute_hash::<Sha224>(data),
+            DLHashType::SHA384 => Self::compute_hash::<Sha384>(data),
+            DLHashType::SHA512 => Self::compute_hash::<Sha512>(data),
+        }
+    }
+    pub fn verify_str(&self, data: &str, hash: &str) -> bool {
+        self.compute(data.to_string().as_bytes()) == hash
+    }
+    pub fn verify_data(&self, data: &[u8], hash: &str) -> bool {
+        self.compute(data) == hash
+    }
+    pub fn verify_file(&self, path: &Path, hash: &str) -> bool {
+        let mut buffer = Vec::new();
+        File::open(path)
+            .expect("Failed to open file")
+            .read_to_end(&mut buffer)
+            .expect("Failed to read file");
+        self.verify_data(buffer.as_slice(), hash)
+    }
+}
+
 impl DLFile {
     /// Asynchronous download of the file
-    pub async fn download(&self, progress: ProgressBar) -> Result<(), String> {
+    pub async fn download(&self, progress: ProgressBar, client: Client) -> Result<(), String> {
         // get the values of the file
         let url = self.url.clone();
         let path = self.path.clone();
@@ -121,7 +142,7 @@ impl DLFile {
         let path_clone = self.path.clone(); // Para el mensaje de progreso
 
         // make the request with SURF
-        let mut response = surf::get(&url).await.expect("Failed to get response");
+        let mut response = client.get(&url).await.expect("Failed to get response");
 
         // sets progress bar length
         progress.set_length(size);
@@ -164,15 +185,29 @@ impl DLFile {
         }
 
         // check the hashes if they exist
-        if hashes.is_some() && !hashes.unwrap().verify(path.clone(), size) {
+        if hashes.hashes.len() > 0 && !hashes.verify_file(&path_clone) {
             // if the hash verification fails, abandon the download
             progress.abandon_with_message(format!("Hash verification failed for {}", path_clone));
             return Err("Hash verification failed".to_string());
         }
 
-        // if the hash verification succeeds, finish the download
-        progress.finish_with_message(format!("Done {}", path));
-        Ok(())
+        if self.decompression_config.is_some() {
+            progress.set_message("Decompressing...");
+            let config = self.decompression_config.as_ref().unwrap();
+            config.decompress(&path_clone)?;
+
+            if config.delete_after {
+                progress.set_message("Cleaning up...");
+                std::fs::remove_file(&path_clone).expect("Failed to delete file");
+            }
+
+            progress.finish_with_message("DONE");
+            Ok(())
+        } else {
+            // if the hash verification succeeds, finish the download
+            progress.finish_with_message(format!("Done {}", path));
+            Ok(())
+        }
     }
     /// New instance of DLFile with default values
     pub fn new() -> Self {
@@ -180,7 +215,9 @@ impl DLFile {
             path: String::new(),
             url: String::new(),
             size: 0,
-            hashes: None,
+            hashes: DLHashes::new(),
+            #[cfg(feature = "decompress")]
+            decompression_config: None,
         }
     }
     /// Adds the path of the file to instance
@@ -200,7 +237,12 @@ impl DLFile {
     }
     /// Adds the hashes of the file to instance
     pub fn with_hashes(mut self, hashes: DLHashes) -> Self {
-        self.hashes = Some(hashes);
+        self.hashes = hashes;
+        self
+    }
+    /// Adds the decompression configuration of the file to instance
+    pub fn with_decompression_config(mut self, config: DLDecompressionConfig) -> Self {
+        self.decompression_config = Some(config);
         self
     }
 }
@@ -231,6 +273,9 @@ impl DLBuilder {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_downloads));
         // create the executor
         let executor = Arc::new(Executor::new());
+        let client = Client::new().with(redirection_middleware::RedirectMiddleware::new(
+            config.max_redirections,
+        ));
 
         // obtain the futures
         let futures: Vec<Pin<Box<dyn Future<Output = Result<(), String>>>>> = self
@@ -241,13 +286,14 @@ impl DLBuilder {
                 let progress = m.add(ProgressBar::new(0).with_style(config.style.clone()));
                 // obtain the semaphore permit
                 let semaphore = Arc::clone(&semaphore);
+                let client = client.clone();
                 // create the task
                 let task: Pin<Box<dyn Future<Output = Result<(), String>>>> =
                     Box::pin(executor.run(async move {
                         // acquire the semaphore permit
                         let permit = semaphore.acquire().await;
                         // download the file
-                        dl_file.download(progress).await?;
+                        dl_file.download(progress, client.clone()).await?;
                         // release the semaphore permit
                         drop(permit);
                         Ok(())
@@ -271,6 +317,7 @@ impl DLBuilder {
 /// Configuration for download
 pub struct DLStartConfig {
     pub max_concurrent_downloads: usize,
+    pub max_redirections: usize,
     pub style: ProgressStyle,
 }
 impl DLStartConfig {
@@ -278,6 +325,7 @@ impl DLStartConfig {
     pub fn new() -> Self {
         DLStartConfig {
             max_concurrent_downloads: 5,
+            max_redirections: 5,
             style: ProgressStyle::with_template(
                 "[{elapsed_precise}] {bar:40.green/red} {pos:>7}/{len:7} {msg}",
             )
@@ -293,6 +341,11 @@ impl DLStartConfig {
     /// Sets the maximum number of concurrent downloads
     pub fn with_max_concurrent_downloads(mut self, max_concurrent_downloads: usize) -> Self {
         self.max_concurrent_downloads = max_concurrent_downloads;
+        self
+    }
+    /// Sets the maximum number of redirections
+    pub fn with_max_redirections(mut self, max_redirections: usize) -> Self {
+        self.max_redirections = max_redirections;
         self
     }
 }
