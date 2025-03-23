@@ -241,7 +241,10 @@ impl DLFile {
     }
     /// Adds the decompression configuration of the file to instance
     #[cfg(feature = "decompress")]
-    pub fn with_decompression_config(mut self, config: DLDecompressionConfig) -> Self {
+    pub fn with_decompression_config(
+        mut self,
+        config: crate::decompress::DLDecompressionConfig,
+    ) -> Self {
         self.decompression_config = Some(config);
         self
     }
