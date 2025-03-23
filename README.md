@@ -4,7 +4,7 @@ Utility for downloading files in parallel.
 DWLDUtil is a library for downloading multiple files in parallel using the asynchronous [SMOL](https://crates.io/crates/smol) engine, it allows to verify the sha1 and sha512 of the files and displays a progress bar of the files.
 
 ## Usage
-```Rust
+```rust
 use dwldutil::{DLBuilder, DLFile, DLHashes};
 
 // Create a new downloader
