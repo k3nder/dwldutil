@@ -195,6 +195,12 @@ impl DLFile {
             progress.set_message("Decompressing...");
             let config = self.decompression_config.as_ref().unwrap();
             config.decompress(&path_clone)?;
+
+            if config.delete_after {
+                progress.set_message("Cleaning up...");
+                std::fs::remove_file(&path_clone).expect("Failed to delete file");
+            }
+
             progress.finish_with_message("DONE");
             Ok(())
         } else {
