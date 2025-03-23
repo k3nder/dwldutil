@@ -35,6 +35,8 @@ pub struct DLFile {
     /// decompression configuration
     #[cfg(feature = "decompress")]
     pub decompression_config: Option<decompress::DLDecompressionConfig>,
+    /// Event on download completion
+    pub on_download: Arc<dyn Fn(String) + Send + Sync>,
 }
 #[derive(Debug, Clone)]
 pub struct DLHashes {
@@ -190,6 +192,9 @@ impl DLFile {
             return Err("Hash verification failed".to_string());
         }
 
+        // call the on_download event
+        (self.on_download)(path_clone.clone());
+
         #[cfg(feature = "decompress")]
         {
             if self.decompression_config.is_some() {
@@ -217,6 +222,7 @@ impl DLFile {
             hashes: DLHashes::new(),
             #[cfg(feature = "decompress")]
             decompression_config: None,
+            on_download: Arc::new(|_| {}),
         }
     }
     /// Adds the path of the file to instance
@@ -246,6 +252,11 @@ impl DLFile {
         config: crate::decompress::DLDecompressionConfig,
     ) -> Self {
         self.decompression_config = Some(config);
+        self
+    }
+    /// Adds the on_download event handler of the file to instance
+    pub fn with_on_download(mut self, on_download: Arc<dyn Fn(String) + Send + Sync>) -> Self {
+        self.on_download = on_download;
         self
     }
 }
