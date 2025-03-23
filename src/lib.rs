@@ -7,10 +7,14 @@ use std::{
     sync::Arc,
 };
 
+use decompress::DLDecompressionConfig;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use sha1::{Digest, Sha1};
 use sha2::{Sha224, Sha256, Sha384, Sha512};
 use smol::{Executor, io::AsyncReadExt, lock::Semaphore};
+
+#[cfg(feature = "decompress")]
+pub mod decompress;
 
 /// Struct in which all the files to be downloaded are set up
 pub struct DLBuilder {
@@ -27,6 +31,9 @@ pub struct DLFile {
     pub hashes: DLHashes,
     /// Path to save the file
     pub path: String,
+    /// decompression configuration
+    #[cfg(feature = "decompress")]
+    pub decompression_config: Option<decompress::DLDecompressionConfig>,
 }
 #[derive(Debug, Clone)]
 pub struct DLHashes {
@@ -182,9 +189,17 @@ impl DLFile {
             return Err("Hash verification failed".to_string());
         }
 
-        // if the hash verification succeeds, finish the download
-        progress.finish_with_message(format!("Done {}", path));
-        Ok(())
+        if self.decompression_config.is_some() {
+            progress.set_message("Decompressing...");
+            let config = self.decompression_config.as_ref().unwrap();
+            config.decompress(&path_clone)?;
+            progress.finish_with_message("DONE");
+            Ok(())
+        } else {
+            // if the hash verification succeeds, finish the download
+            progress.finish_with_message(format!("Done {}", path));
+            Ok(())
+        }
     }
     /// New instance of DLFile with default values
     pub fn new() -> Self {
@@ -193,6 +208,8 @@ impl DLFile {
             url: String::new(),
             size: 0,
             hashes: DLHashes::new(),
+            #[cfg(feature = "decompress")]
+            decompression_config: None,
         }
     }
     /// Adds the path of the file to instance
@@ -213,6 +230,11 @@ impl DLFile {
     /// Adds the hashes of the file to instance
     pub fn with_hashes(mut self, hashes: DLHashes) -> Self {
         self.hashes = hashes;
+        self
+    }
+    /// Adds the decompression configuration of the file to instance
+    pub fn with_decompression_config(mut self, config: DLDecompressionConfig) -> Self {
+        self.decompression_config = Some(config);
         self
     }
 }
