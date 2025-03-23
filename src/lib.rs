@@ -12,9 +12,11 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use sha1::{Digest, Sha1};
 use sha2::{Sha224, Sha256, Sha384, Sha512};
 use smol::{Executor, io::AsyncReadExt, lock::Semaphore};
+use surf::Client;
 
 #[cfg(feature = "decompress")]
 pub mod decompress;
+mod redirection_middleware;
 
 /// Struct in which all the files to be downloaded are set up
 pub struct DLBuilder {
@@ -131,7 +133,7 @@ impl DLHashType {
 
 impl DLFile {
     /// Asynchronous download of the file
-    pub async fn download(&self, progress: ProgressBar) -> Result<(), String> {
+    pub async fn download(&self, progress: ProgressBar, client: Client) -> Result<(), String> {
         // get the values of the file
         let url = self.url.clone();
         let path = self.path.clone();
@@ -140,7 +142,7 @@ impl DLFile {
         let path_clone = self.path.clone(); // Para el mensaje de progreso
 
         // make the request with SURF
-        let mut response = surf::get(&url).await.expect("Failed to get response");
+        let mut response = client.get(&url).await.expect("Failed to get response");
 
         // sets progress bar length
         progress.set_length(size);
@@ -265,6 +267,9 @@ impl DLBuilder {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_downloads));
         // create the executor
         let executor = Arc::new(Executor::new());
+        let client = Client::new().with(redirection_middleware::RedirectMiddleware::new(
+            config.max_redirections,
+        ));
 
         // obtain the futures
         let futures: Vec<Pin<Box<dyn Future<Output = Result<(), String>>>>> = self
@@ -275,13 +280,14 @@ impl DLBuilder {
                 let progress = m.add(ProgressBar::new(0).with_style(config.style.clone()));
                 // obtain the semaphore permit
                 let semaphore = Arc::clone(&semaphore);
+                let client = client.clone();
                 // create the task
                 let task: Pin<Box<dyn Future<Output = Result<(), String>>>> =
                     Box::pin(executor.run(async move {
                         // acquire the semaphore permit
                         let permit = semaphore.acquire().await;
                         // download the file
-                        dl_file.download(progress).await?;
+                        dl_file.download(progress, client.clone()).await?;
                         // release the semaphore permit
                         drop(permit);
                         Ok(())
@@ -305,6 +311,7 @@ impl DLBuilder {
 /// Configuration for download
 pub struct DLStartConfig {
     pub max_concurrent_downloads: usize,
+    pub max_redirections: usize,
     pub style: ProgressStyle,
 }
 impl DLStartConfig {
@@ -312,6 +319,7 @@ impl DLStartConfig {
     pub fn new() -> Self {
         DLStartConfig {
             max_concurrent_downloads: 5,
+            max_redirections: 5,
             style: ProgressStyle::with_template(
                 "[{elapsed_precise}] {bar:40.green/red} {pos:>7}/{len:7} {msg}",
             )
@@ -327,6 +335,11 @@ impl DLStartConfig {
     /// Sets the maximum number of concurrent downloads
     pub fn with_max_concurrent_downloads(mut self, max_concurrent_downloads: usize) -> Self {
         self.max_concurrent_downloads = max_concurrent_downloads;
+        self
+    }
+    /// Sets the maximum number of redirections
+    pub fn with_max_redirections(mut self, max_redirections: usize) -> Self {
+        self.max_redirections = max_redirections;
         self
     }
 }
