@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use decompress::DLDecompressionConfig;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use sha1::{Digest, Sha1};
 use sha2::{Sha224, Sha256, Sha384, Sha512};
@@ -191,23 +190,23 @@ impl DLFile {
             return Err("Hash verification failed".to_string());
         }
 
-        if self.decompression_config.is_some() {
-            progress.set_message("Decompressing...");
-            let config = self.decompression_config.as_ref().unwrap();
-            config.decompress(&path_clone)?;
+        #[cfg(feature = "decompress")]
+        {
+            if self.decompression_config.is_some() {
+                progress.set_message("Decompressing...");
+                let config = self.decompression_config.as_ref().unwrap();
+                config.decompress(&path_clone)?;
 
-            if config.delete_after {
-                progress.set_message("Cleaning up...");
-                std::fs::remove_file(&path_clone).expect("Failed to delete file");
+                if config.delete_after {
+                    progress.set_message("Cleaning up...");
+                    std::fs::remove_file(&path_clone).expect("Failed to delete file");
+                }
             }
-
-            progress.finish_with_message("DONE");
-            Ok(())
-        } else {
-            // if the hash verification succeeds, finish the download
-            progress.finish_with_message(format!("Done {}", path));
-            Ok(())
         }
+
+        // if the hash verification succeeds, finish the download
+        progress.finish_with_message(format!("DONE {}", path));
+        Ok(())
     }
     /// New instance of DLFile with default values
     pub fn new() -> Self {
@@ -241,6 +240,7 @@ impl DLFile {
         self
     }
     /// Adds the decompression configuration of the file to instance
+    #[cfg(feature = "decompress")]
     pub fn with_decompression_config(mut self, config: DLDecompressionConfig) -> Self {
         self.decompression_config = Some(config);
         self
