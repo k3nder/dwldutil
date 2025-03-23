@@ -93,6 +93,8 @@ pub struct DLDecompressionConfig {
     pub method: DecompressionMethod,
     /// Output directory
     pub output: String,
+    /// Delete file after decompression
+    pub delete_after: bool,
 }
 impl DLDecompressionConfig {
     /// Create a new decompression configuration
@@ -100,6 +102,7 @@ impl DLDecompressionConfig {
         DLDecompressionConfig {
             method,
             output: output.to_string(),
+            delete_after: true,
         }
     }
     /// Set the decompression method
@@ -110,6 +113,16 @@ impl DLDecompressionConfig {
     /// Set the output directory
     pub fn with_output(mut self, output: String) -> Self {
         self.output = output;
+        self
+    }
+    /// Set whether to delete the file after decompression
+    pub fn with_delete_after(mut self, delete_after: bool) -> Self {
+        self.delete_after = delete_after;
+        self
+    }
+    /// Set delete after to true
+    pub fn delete_after(mut self) -> Self {
+        self.delete_after = true;
         self
     }
     /// Decompress a file
