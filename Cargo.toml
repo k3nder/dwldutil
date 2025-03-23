@@ -7,7 +7,7 @@ authors = ["k3nder <k3nder@outlook.es>"]
 license = "GPL-3.0-only"
 repository = "https://github.com/k3nder/dwldutil"
 rust-version = "1.85.0"
-categories = ["utilities"]
+categories = ["command-line-utilities", "multimedia"]
 keywords = ["download", "parallel", "utility"]
 
 [dependencies]
