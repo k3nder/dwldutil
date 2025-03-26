@@ -165,7 +165,7 @@ impl DLFile {
         // sets progress bar message
         progress.set_message(format!("Downloading {}", path_clone));
         // if the response is successful, write the file
-        if response.status().is_success() {
+        let path_hash: String = if response.status().is_success() {
             // create the parent directory if it doesn't exist
             let ppath = Path::new(&path);
             if let Some(parent) = ppath.parent() {
@@ -173,7 +173,7 @@ impl DLFile {
             }
 
             // create the file
-            let mut file = if self.cas.is_some() && hashes.hashes.len() > 0 {
+            let (mut file, path_hash) = if self.cas.is_some() && hashes.hashes.len() > 0 {
                 let hash = hashes.hashes.get(0).unwrap().clone().1;
                 let storage = self.cas.as_ref().unwrap();
                 if storage.find(hash.as_str()).is_some() {
@@ -184,9 +184,12 @@ impl DLFile {
                     progress.set_position(size);
                     return Ok(());
                 }
-                storage.new_file(hash.as_str(), path.clone().as_str())
+                (
+                    storage.new_file(hash.as_str(), path.clone().as_str()),
+                    storage.path(hash.as_str()),
+                )
             } else {
-                File::create(path.clone()).unwrap()
+                (File::create(path.clone()).unwrap(), path.clone())
             };
 
             // bytes downloaded
@@ -209,13 +212,15 @@ impl DLFile {
                     Err(e) => return Err(e.to_string()),
                 }
             }
+            path_hash
         } else {
             // if the response isn't successful, abandon the download
             progress.abandon_with_message(format!("Error: {}", response.status()));
-        }
+            String::new()
+        };
 
         // check the hashes if they exist
-        if hashes.hashes.len() > 0 && !hashes.verify_file(&path_clone) {
+        if hashes.hashes.len() > 0 && !hashes.verify_file(&path_hash) {
             // if the hash verification fails, abandon the download
             progress.abandon_with_message(format!("Hash verification failed for {}", path_clone));
             return Err("Hash verification failed".to_string());
