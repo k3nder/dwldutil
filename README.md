@@ -28,10 +28,9 @@ dl.start();
 ## Downloading 10 Files at a time
 to configure the downloading of multiple files at once you can use the DLStartConfig configuration, as follows
 ```rust
-use dwldutil::DLStartConfig;
-let config = DLStartConfig::new()
+let dl = dl
     .with_max_concurrent_downloads(10);
-dl.start_with_config(config);
+dl.start();
 ```
 
 ## Changing the progress bar style
@@ -43,9 +42,9 @@ let progress_style = ProgressStyle::new()
     .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
     .progress_chars("#>-");
 
-let config = DLStartConfig::new()
+let dl = dl
     .with_style(progress_style);
-dl.start_with_config(config);
+dl.start();
 ```
 
 ## Descompressing Downloaded Files
@@ -91,7 +90,7 @@ when this error occurs it usually indicates that the server is being redirected,
 
 If you have already updated and the problem now appears as ‘Too many redirects’, you will have to increase the number of redirects allowed in DLStartConfig, as follows:
 ```rust
-let config = DLStartConfig::new()
+let dl = dl
     .with_max_redirects(10);
-dl.start_with_config(config);
+dl.start();
 ```
