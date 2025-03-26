@@ -21,7 +21,10 @@ mod redirection_middleware;
 
 /// Struct in which all the files to be downloaded are set up
 pub struct DLBuilder {
-    files: Vec<DLFile>,
+    pub files: Vec<DLFile>,
+    pub max_concurrent_downloads: usize,
+    pub max_redirections: usize,
+    pub style: ProgressStyle,
 }
 
 /// Struct in which they set the data in a file
@@ -287,7 +290,16 @@ impl DLFile {
 impl DLBuilder {
     /// Creates a new instance of DLBuilder
     pub fn new() -> Self {
-        DLBuilder { files: Vec::new() }
+        DLBuilder {
+            files: Vec::new(),
+            max_concurrent_downloads: 5,
+            max_redirections: 5,
+            style: ProgressStyle::with_template(
+                "[{elapsed_precise}] {bar:40.green/red} {pos:>7}/{len:7} {msg}",
+            )
+            .unwrap()
+            .progress_chars("##-"),
+        }
     }
     /// Adds the files to instance
     pub fn with_files(mut self, files: Vec<DLFile>) -> Self {
@@ -296,23 +308,24 @@ impl DLBuilder {
     }
     /// Creates a new instance of DLBuilder with the given files
     pub fn from_files(files: Vec<DLFile>) -> Self {
-        DLBuilder { files }
+        let builder = DLBuilder::new();
+        builder.with_files(files)
     }
     /// Adds a file to the instance
     pub fn add_file(mut self, file: DLFile) -> Self {
         self.files.push(file);
         self
     }
-    /// Starts the download with the given configuration
-    pub fn start_with_config(&self, config: DLStartConfig) {
+    /// Starts the download
+    pub fn start(&self) {
         // create a new MultiProgress instance
         let m = MultiProgress::new();
         // create the semaphore of the maximum concurrent downloads
-        let semaphore = Arc::new(Semaphore::new(config.max_concurrent_downloads));
+        let semaphore = Arc::new(Semaphore::new(self.max_concurrent_downloads));
         // create the executor
         let executor = Arc::new(Executor::new());
         let client = Client::new().with(redirection_middleware::RedirectMiddleware::new(
-            config.max_redirections,
+            self.max_redirections,
         ));
 
         // obtain the futures
@@ -321,7 +334,7 @@ impl DLBuilder {
             .iter()
             .map(|dl_file| {
                 // create the progress bar
-                let progress = m.add(ProgressBar::new(0).with_style(config.style.clone()));
+                let progress = m.add(ProgressBar::new(0).with_style(self.style.clone()));
                 // obtain the semaphore permit
                 let semaphore = Arc::clone(&semaphore);
                 let client = client.clone();
@@ -344,32 +357,6 @@ impl DLBuilder {
         smol::block_on(async {
             futures::future::join_all(futures).await;
         });
-    }
-    /// Starts the download with default configuration
-    pub fn start(&self) {
-        // start the download with default configuration
-        self.start_with_config(DLStartConfig::new());
-    }
-}
-
-/// Configuration for download
-pub struct DLStartConfig {
-    pub max_concurrent_downloads: usize,
-    pub max_redirections: usize,
-    pub style: ProgressStyle,
-}
-impl DLStartConfig {
-    /// Creates a new configuration with default values
-    pub fn new() -> Self {
-        DLStartConfig {
-            max_concurrent_downloads: 5,
-            max_redirections: 5,
-            style: ProgressStyle::with_template(
-                "[{elapsed_precise}] {bar:40.green/red} {pos:>7}/{len:7} {msg}",
-            )
-            .unwrap()
-            .progress_chars("##-"),
-        }
     }
     /// Sets the style of the progress bar
     pub fn with_style(mut self, style: ProgressStyle) -> Self {
