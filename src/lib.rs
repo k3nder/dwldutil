@@ -140,6 +140,13 @@ impl DLHashType {
     }
 }
 
+fn symlink_exists(path: &Path) -> bool {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata.file_type().is_symlink(),
+        Err(_) => false,
+    }
+}
+
 impl DLFile {
     /// Asynchronous download of the file
     pub async fn download(&self, progress: ProgressBar, client: Client) -> Result<(), String> {
@@ -170,7 +177,9 @@ impl DLFile {
                 let hash = hashes.hashes.get(0).unwrap().clone().1;
                 let storage = self.cas.as_ref().unwrap();
                 if storage.find(hash.as_str()).is_some() {
-                    storage.symlink(hash.as_str(), path.clone().as_str());
+                    if !symlink_exists(Path::new(path.clone().as_str())) {
+                        storage.symlink(hash.as_str(), path.clone().as_str());
+                    }
                     progress.set_message(format!("Done {}", path_clone));
                     progress.set_position(size);
                     return Ok(());
