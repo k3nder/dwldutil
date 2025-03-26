@@ -20,7 +20,7 @@ pub mod decompress;
 mod redirection_middleware;
 
 /// Struct in which all the files to be downloaded are set up
-pub struct DLBuilder {
+pub struct Downloader {
     pub files: Vec<DLFile>,
     pub max_concurrent_downloads: usize,
     pub max_redirections: usize,
@@ -287,10 +287,10 @@ impl DLFile {
         self
     }
 }
-impl DLBuilder {
-    /// Creates a new instance of DLBuilder
+impl Downloader {
+    /// Creates a new instance of Downloader
     pub fn new() -> Self {
-        DLBuilder {
+        Downloader {
             files: Vec::new(),
             max_concurrent_downloads: 5,
             max_redirections: 5,
@@ -306,9 +306,9 @@ impl DLBuilder {
         self.files.extend(files);
         self
     }
-    /// Creates a new instance of DLBuilder with the given files
+    /// Creates a new instance of Downloader with the given files
     pub fn from_files(files: Vec<DLFile>) -> Self {
-        let builder = DLBuilder::new();
+        let builder = Downloader::new();
         builder.with_files(files)
     }
     /// Adds a file to the instance
