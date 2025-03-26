@@ -39,6 +39,9 @@ pub struct DLFile {
     pub decompression_config: Option<decompress::DLDecompressionConfig>,
     /// Event on download completion
     pub on_download: Arc<dyn Fn(String) + Send + Sync>,
+    /// Unsing CAS
+    #[cfg(feature = "cas")]
+    pub cas: Option<cas::DLStorage>,
 }
 #[derive(Debug, Clone)]
 pub struct DLHashes {
@@ -160,7 +163,19 @@ impl DLFile {
             }
 
             // create the file
-            let mut file = File::create(path.clone()).unwrap();
+            let mut file = if self.cas.is_some() && hashes.hashes.len() > 0 {
+                let hash = hashes.hashes.get(0).unwrap().clone().1;
+                let storage = self.cas.as_ref().unwrap();
+                if storage.find(hash.as_str()).is_some() {
+                    storage.symlink(hash.as_str(), path.clone().as_str());
+                    progress.set_message(format!("Done {}", path_clone));
+                    progress.set_position(size);
+                    return Ok(());
+                }
+                storage.new_file(hash.as_str(), path.clone().as_str())
+            } else {
+                File::create(path.clone()).unwrap()
+            };
 
             // bytes downloaded
             let mut downloaded = 0;
@@ -184,7 +199,7 @@ impl DLFile {
             }
         } else {
             // if the response isn't successful, abandon the download
-            progress.abandon_with_message(format!("Error: código de estado {}", response.status()));
+            progress.abandon_with_message(format!("Error: {}", response.status()));
         }
 
         // check the hashes if they exist
@@ -225,6 +240,7 @@ impl DLFile {
             #[cfg(feature = "decompress")]
             decompression_config: None,
             on_download: Arc::new(|_| {}),
+            cas: None,
         }
     }
     /// Adds the path of the file to instance
@@ -259,6 +275,12 @@ impl DLFile {
     /// Adds the on_download event handler of the file to instance
     pub fn with_on_download(mut self, on_download: Arc<dyn Fn(String) + Send + Sync>) -> Self {
         self.on_download = on_download;
+        self
+    }
+    /// Configure CAS using
+    #[cfg(feature = "cas")]
+    pub fn with_cas(mut self, value: cas::DLStorage) -> Self {
+        self.cas = Some(value);
         self
     }
 }
