@@ -12,6 +12,8 @@ use sha1::{Digest, Sha1};
 use sha2::{Sha224, Sha256, Sha384, Sha512};
 use smol::{Executor, io::AsyncReadExt, lock::Semaphore};
 use surf::Client;
+#[cfg(feature = "cas")]
+pub mod cas;
 
 #[cfg(feature = "decompress")]
 pub mod decompress;
