@@ -5,6 +5,7 @@ use std::{
 
 use symlink::symlink_auto;
 
+#[derive(Debug, Clone)]
 pub struct DLStorage {
     pub path: PathBuf,
 }
