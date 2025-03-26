@@ -5,10 +5,10 @@ DWLDUtil is a library for downloading multiple files in parallel using the async
 
 ## Usage
 ```rust
-use dwldutil::{DLBuilder, DLFile, DLHashes};
+use dwldutil::{Downloader, DLFile, DLHashes};
 
 // Create a new downloader
-let dl = DLBuilder::new()
+let dl = Downloader::new()
      // add new file to downloader
      .add_file(
      DLFile::new()
@@ -61,10 +61,10 @@ the decompress feature is needed by both features, the normal_zip feature implem
 ```rust
 use dwldutil::decompress::{ Decompressor, DLDecompressionConfig, DecompressionMethod };
 use dwldutil::decompress::zip::ZipDecompressor;
-use dwldutil::{DLBuilder, DLFile, DLHashes};
+use dwldutil::{Downloader, DLFile, DLHashes};
 
 // Create a new downloader
-let dl = DLBuilder::new()
+let dl = Downloader::new()
      // add new file to downloader
      .add_file(
      DLFile::new()
