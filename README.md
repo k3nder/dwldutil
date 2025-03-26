@@ -85,6 +85,29 @@ this will also delete the downloaded file after compressing, if you want to keep
 DLDecompressionConfig::new(DecompressionMethod::Zip, "output_folder").with_delete_after(false)
 ```
 
+## You have duplicate files, no problem
+you can use a file storage, download the files once and use symlinks to connect everything.
+
+the ‘cas’ feature is implemented by default
+
+```rust
+use dwldutil::{cas::DLStorage, cas::DLFile};
+
+let storage = DLStorage::new(".objects");
+
+let file = DLFile::new()
+    .with_path("file.tar.gz")
+    .with_url("https://httpbin.org/zip/file.zip")
+    .with_size(8090)
+    .with_hashes(DLHashes::new()
+        .sha1("379f5137831350c900e757b39e525b9db1426d53")
+    )
+    .with_storage(storage.clone());
+```
+
+> [!WARNING]
+> This needs a mandatory hash, otherwise it does not work.
+
 ## 302 Error Code
 when this error occurs it usually indicates that the server is being redirected, this error has been fixed in version 1.0.0, please consider updating.
 
@@ -94,3 +117,5 @@ let dl = dl
     .with_max_redirects(10);
 dl.start();
 ```
+
+##
