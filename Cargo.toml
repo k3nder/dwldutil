@@ -1,6 +1,6 @@
 [package]
 name = "dwldutil"
-version = "2.0.2"
+version = "2.0.4"
 edition = "2024"
 description = "A utility for parallel downloading"
 authors = ["k3nder <k3nder@outlook.es>"]
