@@ -390,3 +390,8 @@ impl Downloader {
         self
     }
 }
+fn create_client(max_redirections: usize) -> Client {
+    Client::new().with(redirection_middleware::RedirectMiddleware::new(
+        max_redirections,
+    ))
+}
