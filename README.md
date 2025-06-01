@@ -118,4 +118,9 @@ let dl = dl
 dl.start();
 ```
 
-##
+## 421 Error Code
+Since the last update where openssl was changed to rustls this error can occur, it is a certification error, where an invalid certificate is used for a SNI, this can be fixed with the `no_static_client` feature that creates a surf client for each download.
+
+```toml
+dwldutil = { version = "2.0.4", features = ["no_static_client"] }
+```
