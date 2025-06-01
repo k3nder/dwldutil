@@ -358,6 +358,8 @@ impl Downloader {
                         // acquire the semaphore permit
                         let permit = semaphore.acquire().await;
                         // download the file
+                        #[cfg(feature = "no_static_client")]
+                        let client = create_client(self.max_redirections);
                         dl_file.download(progress, client.clone()).await?;
                         // release the semaphore permit
                         drop(permit);
