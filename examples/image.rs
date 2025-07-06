@@ -1,8 +1,8 @@
-use dwldutil::{DLFile, DLHashes, Downloader};
+use dwldutil::{DLFile, DLHashes, Downloader, indicator::Silent};
 
 fn main() {
     // Create a new downloader
-    let dl = Downloader::new()
+    let dl = Downloader::<Silent>::new()
         // add new file to downloader
         .add_file(
             DLFile::new()

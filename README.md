@@ -5,10 +5,10 @@ DWLDUtil is a library for downloading multiple files in parallel using the async
 
 ## Usage
 ```rust
-use dwldutil::{Downloader, DLFile, DLHashes};
+use dwldutil::{Downloader, DLFile, DLHashes, indicator::Silent};
 
-// Create a new downloader
-let dl = Downloader::new()
+// Create a new downloader, with silent indicator
+let dl = Downloader::<Silent>::new()
      // add new file to downloader
      .add_file(
      DLFile::new()
@@ -33,20 +33,56 @@ let dl = dl
 dl.start();
 ```
 
-## Changing the progress bar style
-the way to change the progress bar is like setting the maximum limit of simultaneous downloads, you use DLStartConifg, but for this setting you have to have knowledge in [indicatif](https://crates.io/crates/indicatif).
+## Progress Bars and indicators
+in order to use progress bars or indicate in some way where the download is going, you have to use flags, these flags allow you to implement events for each downloaded file, to save time, there are already two available implementations of flags:
+- indicators::indicatif::Indicatf : has to be enabled with the `indicatif_indicator` feature, it allows you to use indicatif to generate progress bars.
+- indicators::Silent : does not print anything
+This example shows the use of indicators:
 ```rust
-use indicatif::ProgressStyle;
+use dwldutil::{Downloader, indicator::Silent}
 
-let progress_style = ProgressStyle::new()
-    .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-    .progress_chars("#>-");
-
-let dl = dl
-    .with_style(progress_style);
-dl.start();
+let downloader = Downloader::<Silent>::new();
 ```
 
+if you want to implement your own indicators, you have to create two structures, one that implements IndicatorFactory and another that implements Indicator:
+```rust
+use dwldutil::indicator::{Indicator, IndicateSignal, IndicatorFactory};
+
+#[derive(Debug)]
+pub struct MyIndicator;
+impl IndicatorFactory for MyIndicator {
+    fn create_task(name: &str, size: u64) -> impl Indicator {
+        MyIndicatorChild
+    }
+}
+
+pub struct MyIndicatorChild;
+impl Indicator for MyIndicatorChild {
+    fn effect(&mut self, position: u64) {
+
+    }
+    fn signal(&mut self, signal: IndicateSignal) {
+        match signal {
+            IndicateSignal::Fail(err) => {
+                println!("Error downloading file {}", err);
+            },
+            IndicateSignal::State(stat) => {
+                println!("Changing downloading state of file to {}", stat);
+            },
+            IndicateSignal::Success() => {
+                println!("Downloading file successfull");
+            }
+        }
+    }
+}
+
+// For use
+let dl = Downloader::<MyIndicator>::new();
+
+// if you have specific properties inside the factory, and you don't want to use the default ones use:
+dl.with_indicator(MyIndicator {});
+
+```
 ## Descompressing Downloaded Files
 if you want to decompress the downloaded file, whether it is a tar.gz or a zip file, you can do it in a simple way by activating a feature, as follows
 ```toml
@@ -61,9 +97,10 @@ the decompress feature is needed by both features, the normal_zip feature implem
 use dwldutil::decompress::{ Decompressor, DLDecompressionConfig, DecompressionMethod };
 use dwldutil::decompress::zip::ZipDecompressor;
 use dwldutil::{Downloader, DLFile, DLHashes};
+use dwldutil::indicator::Silent;
 
 // Create a new downloader
-let dl = Downloader::new()
+let dl = Downloader::<Silent>::new()
      // add new file to downloader
      .add_file(
      DLFile::new()

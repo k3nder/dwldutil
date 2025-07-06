@@ -7,24 +7,25 @@ use std::{
     sync::Arc,
 };
 
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicator::{IndicateSignal, Indicator, IndicatorFactory};
 use sha1::{Digest, Sha1};
 use sha2::{Sha224, Sha256, Sha384, Sha512};
 use smol::{Executor, io::AsyncReadExt, lock::Semaphore};
 use surf::Client;
 #[cfg(feature = "cas")]
 pub mod cas;
+pub mod indicator;
 
 #[cfg(feature = "decompress")]
 pub mod decompress;
 mod redirection_middleware;
 
 /// Struct in which all the files to be downloaded are set up
-pub struct Downloader {
+pub struct Downloader<T: IndicatorFactory> {
     pub files: Vec<DLFile>,
     pub max_concurrent_downloads: usize,
     pub max_redirections: usize,
-    pub style: ProgressStyle,
+    indicator_factory: T,
 }
 
 /// Struct in which they set the data in a file
@@ -149,7 +150,11 @@ fn symlink_exists(path: &Path) -> bool {
 
 impl DLFile {
     /// Asynchronous download of the file
-    pub async fn download(&self, progress: ProgressBar, client: Client) -> Result<(), String> {
+    pub async fn download(
+        &self,
+        mut indicator: impl Indicator,
+        client: Client,
+    ) -> Result<(), String> {
         // get the values of the file
         let url = self.url.clone();
         let path = self.path.clone();
@@ -160,10 +165,6 @@ impl DLFile {
         // make the request with SURF
         let mut response = client.get(&url).await.expect("Failed to get response");
 
-        // sets progress bar length
-        progress.set_length(size);
-        // sets progress bar message
-        progress.set_message(format!("Downloading {}", path_clone));
         // if the response is successful, write the file
         let path_hash: String = if response.status().is_success() {
             // create the parent directory if it doesn't exist
@@ -180,8 +181,8 @@ impl DLFile {
                     if !symlink_exists(Path::new(path.clone().as_str())) {
                         storage.symlink(hash.as_str(), path.clone().as_str());
                     }
-                    progress.set_message(format!("Done {}", path_clone));
-                    progress.set_position(size);
+                    indicator.signal(IndicateSignal::Success());
+                    indicator.effect(size);
                     return Ok(());
                 }
                 (
@@ -207,7 +208,7 @@ impl DLFile {
                         file.write_all(&buffer[..n]).unwrap();
                         downloaded += n as u64;
                         // update the progress bar
-                        progress.set_position(downloaded);
+                        indicator.effect(downloaded);
                     }
                     Err(e) => return Err(e.to_string()),
                 }
@@ -215,14 +216,17 @@ impl DLFile {
             path_hash
         } else {
             // if the response isn't successful, abandon the download
-            progress.abandon_with_message(format!("Error: {}", response.status()));
+            indicator.signal(IndicateSignal::Fail(response.status().to_string()));
             String::new()
         };
 
         // check the hashes if they exist
         if hashes.hashes.len() > 0 && !hashes.verify_file(&path_hash) {
             // if the hash verification fails, abandon the download
-            progress.abandon_with_message(format!("Hash verification failed for {}", path_clone));
+            indicator.signal(IndicateSignal::Fail(format!(
+                "Hash verification failed for {}",
+                path_clone
+            )));
             return Err("Hash verification failed".to_string());
         }
 
@@ -232,19 +236,19 @@ impl DLFile {
         #[cfg(feature = "decompress")]
         {
             if self.decompression_config.is_some() {
-                progress.set_message("Decompressing...");
+                indicator.signal(IndicateSignal::State("Decompressing...".to_string()));
                 let config = self.decompression_config.as_ref().unwrap();
                 config.decompress(&path_clone)?;
 
                 if config.delete_after {
-                    progress.set_message("Cleaning up...");
+                    indicate.signal(IndicateSingal::State("Cleaning up...".to_string()));
                     std::fs::remove_file(&path_clone).expect("Failed to delete file");
                 }
             }
         }
 
         // if the hash verification succeeds, finish the download
-        progress.finish_with_message(format!("DONE {}", path));
+        indicator.signal(IndicateSignal::Success());
         Ok(())
     }
     /// New instance of DLFile with default values
@@ -301,18 +305,14 @@ impl DLFile {
         self
     }
 }
-impl Downloader {
+impl<T: IndicatorFactory> Downloader<T> {
     /// Creates a new instance of Downloader
     pub fn new() -> Self {
         Downloader {
             files: Vec::new(),
             max_concurrent_downloads: 5,
             max_redirections: 5,
-            style: ProgressStyle::with_template(
-                "[{elapsed_precise}] {bar:40.green/red} {pos:>7}/{len:7} {msg}",
-            )
-            .unwrap()
-            .progress_chars("##-"),
+            indicator_factory: Default::default(),
         }
     }
     /// Adds the files to instance
@@ -332,8 +332,6 @@ impl Downloader {
     }
     /// Starts the download
     pub fn start(&self) {
-        // create a new MultiProgress instance
-        let m = MultiProgress::new();
         // create the semaphore of the maximum concurrent downloads
         let semaphore = Arc::new(Semaphore::new(self.max_concurrent_downloads));
         // create the executor
@@ -348,7 +346,9 @@ impl Downloader {
             .iter()
             .map(|dl_file| {
                 // create the progress bar
-                let progress = m.add(ProgressBar::new(0).with_style(self.style.clone()));
+                let indicator = self
+                    .indicator_factory
+                    .create_task(&dl_file.path, dl_file.size);
                 // obtain the semaphore permit
                 let semaphore = Arc::clone(&semaphore);
                 let client = client.clone();
@@ -360,7 +360,7 @@ impl Downloader {
                         // download the file
                         #[cfg(feature = "no_static_client")]
                         let client = create_client(self.max_redirections);
-                        dl_file.download(progress, client.clone()).await?;
+                        dl_file.download(indicator, client.clone()).await?;
                         // release the semaphore permit
                         drop(permit);
                         Ok(())
@@ -374,11 +374,6 @@ impl Downloader {
             futures::future::join_all(futures).await;
         });
     }
-    /// Sets the style of the progress bar
-    pub fn with_style(mut self, style: ProgressStyle) -> Self {
-        self.style = style;
-        self
-    }
     /// Sets the maximum number of concurrent downloads
     pub fn with_max_concurrent_downloads(mut self, max_concurrent_downloads: usize) -> Self {
         self.max_concurrent_downloads = max_concurrent_downloads;
@@ -387,6 +382,11 @@ impl Downloader {
     /// Sets the maximum number of redirections
     pub fn with_max_redirections(mut self, max_redirections: usize) -> Self {
         self.max_redirections = max_redirections;
+        self
+    }
+    /// Sets the indicator tracer
+    pub fn with_indicator(mut self, indicator: T) -> Self {
+        self.indicator_factory = indicator;
         self
     }
 }
