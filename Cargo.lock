@@ -733,7 +733,7 @@ dependencies = [
 
 [[package]]
 name = "dwldutil"
-version = "3.0.0"
+version = "3.0.1"
 dependencies = [
  "env_logger",
  "flate2",
