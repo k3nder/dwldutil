@@ -241,7 +241,7 @@ impl DLFile {
                 config.decompress(&path_clone)?;
 
                 if config.delete_after {
-                    indicate.signal(IndicateSingal::State("Cleaning up...".to_string()));
+                    indicator.signal(IndicateSignal::State("Cleaning up...".to_string()));
                     std::fs::remove_file(&path_clone).expect("Failed to delete file");
                 }
             }
