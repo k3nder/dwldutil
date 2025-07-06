@@ -19,6 +19,7 @@ impl DecompressionMethod {
             DecompressionMethod::TarGzip => gzip::TarGzipDecompressor::decompress(file, path),
             #[cfg(feature = "normal_zip")]
             DecompressionMethod::Zip => zip::ZipDecompressor::decompress(file, path),
+            _ => return Ok(()),
         }
     }
 }
