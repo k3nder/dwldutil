@@ -1,0 +1,46 @@
+pub enum ProgressSignal {
+    Fail(String),
+    Success(),
+}
+
+pub trait ProgressFactory<T: ProgressChild> {
+    fn create_task(&self, name: &str, size: u64) -> T;
+}
+pub trait ProgressChild {
+    fn effect(&mut self, position: u64);
+    fn signal(&mut self, signal: ProgressSignal);
+}
+
+#[cfg(feature = "indicatif_progress")]
+pub mod indicatif {
+    use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+    pub struct IndicatifFactory {
+        style: ProgressStyle,
+        multiprogress: MultiProgress,
+    }
+    impl super::ProgressFactory<Indicatif> for IndicatifFactory {
+        fn create_task(&self, name: &str, size: u64) -> Indicatif {
+            let bar = ProgressBar::new(size).with_style(self.style.clone());
+            let bar = self.multiprogress.add(bar);
+
+            Indicatif { bar }
+        }
+    }
+
+    pub struct Indicatif {
+        bar: ProgressBar,
+    }
+    impl super::ProgressChild for Indicatif {
+        fn effect(&mut self, position: u64) {
+            self.bar.set_position(position);
+        }
+        fn signal(&mut self, signal: super::ProgressSignal) {
+            match signal {
+                super::ProgressSignal::Fail(f) => {
+                    self.bar.finish_with_message(format!("Error -- {}", f));
+                }
+                super::ProgressSignal::Success() => {}
+            }
+        }
+    }
+}

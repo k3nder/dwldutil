@@ -1,8 +1,8 @@
-use dwldutil::{DLFile, DLHashes, Downloader};
+use dwldutil::{DLFile, DLHashes, Downloader, progress::indicatif::IndicatifFactory};
 
 fn main() {
     // Create a new downloader
-    let dl = Downloader::new()
+    let dl = Downloader::<IndicatifFactory>::new()
         // add new file to downloader
         .add_file(
             DLFile::new()
