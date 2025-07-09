@@ -40,7 +40,7 @@ impl Indicator for SilentChild {
 
 #[cfg(feature = "indicatif_indicator")]
 pub mod indicatif {
-    use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+    use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
     /// Indicatif indicator implementation
     pub struct Indicatif {
         style: ProgressStyle,
@@ -49,6 +49,7 @@ pub mod indicatif {
     impl super::IndicatorFactory for Indicatif {
         fn create_task(&self, name: &str, size: u64) -> IndicatifChild {
             let bar = ProgressBar::new(size).with_style(self.style.clone());
+            bar.set_draw_target(ProgressDrawTarget::hidden());
             let bar = self.multiprogress.add(bar);
             bar.set_message(name.to_string());
             IndicatifChild { bar }
@@ -88,6 +89,9 @@ pub mod indicatif {
                 }
                 super::IndicateSignal::Success() => {
                     self.bar.finish_with_message(format!("Done!"));
+                }
+                super::IndicateSignal::Start() => {
+                    self.bar.set_draw_target(ProgressDrawTarget::stdout());
                 }
             }
         }
