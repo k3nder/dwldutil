@@ -6,6 +6,8 @@ pub enum IndicateSignal {
     State(String),
     /// Success download
     Success(),
+    /// Start download
+    Start(),
 }
 
 /// Trait for creation of indicators

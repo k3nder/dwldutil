@@ -346,7 +346,7 @@ impl<T: IndicatorFactory> Downloader<T> {
             .iter()
             .map(|dl_file| {
                 // create the progress bar
-                let indicator = self
+                let mut indicator = self
                     .indicator_factory
                     .create_task(&dl_file.path, dl_file.size);
                 // obtain the semaphore permit
@@ -357,6 +357,7 @@ impl<T: IndicatorFactory> Downloader<T> {
                     Box::pin(executor.run(async move {
                         // acquire the semaphore permit
                         let permit = semaphore.acquire().await;
+                        indicator.signal(IndicateSignal::Start());
                         // download the file
                         #[cfg(feature = "no_static_client")]
                         let client = create_client(self.max_redirections);
