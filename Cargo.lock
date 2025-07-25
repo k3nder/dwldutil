@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "dwldutil"
-version = "3.0.3"
+version = "3.1.0"
 dependencies = [
  "flate2",
  "futures",
