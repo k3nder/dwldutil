@@ -30,8 +30,8 @@ symlink = { version = "0.1.0", optional = true }
 
 [features]
 default = ["cas"]
-gzip = ["tar", "flate2", "decompress"]
-normal_zip = ["zip", "decompress"]
+tar = ["dep:tar", "dep:flate2", "decompress"]
+zip = ["dep:zip", "decompress"]
 decompress = []
 cas = ["symlink"]
 no_static_client = []
