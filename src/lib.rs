@@ -265,8 +265,8 @@ impl DLFile {
         }
     }
     /// Adds the path of the file to instance
-    pub fn with_path(mut self, path: &str) -> Self {
-        self.path = path.to_string();
+    pub fn with_path<P: AsRef<Path>>(mut self, path: P) -> Self {
+        self.path = path.as_ref().to_string_lossy().to_string();
         self
     }
     /// Adds the URL of the file to instance
@@ -391,6 +391,7 @@ impl<T: IndicatorFactory> Downloader<T> {
         self
     }
 }
+#[cfg(feature = "no_static_client")]
 fn create_client(max_redirections: usize) -> Client {
     Client::new().with(redirection_middleware::RedirectMiddleware::new(
         max_redirections,
