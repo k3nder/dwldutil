@@ -5,9 +5,9 @@ pub trait Decompressor {
 
 /// Methods for decompressing files.
 pub enum DecompressionMethod {
-    #[cfg(feature = "gzip")]
+    #[cfg(feature = "tar")]
     TarGzip,
-    #[cfg(feature = "normal_zip")]
+    #[cfg(feature = "zip")]
     Zip,
 }
 
@@ -15,9 +15,9 @@ impl DecompressionMethod {
     /// Decompresses a file using the specified method.
     pub fn decompress(&self, file: &str, path: &str) -> Result<(), String> {
         match self {
-            #[cfg(feature = "gzip")]
+            #[cfg(feature = "tar")]
             DecompressionMethod::TarGzip => gzip::TarGzipDecompressor::decompress(file, path),
-            #[cfg(feature = "normal_zip")]
+            #[cfg(feature = "zip")]
             DecompressionMethod::Zip => zip::ZipDecompressor::decompress(file, path),
             _ => return Ok(()),
         }
@@ -25,7 +25,7 @@ impl DecompressionMethod {
 }
 
 /// Decompress tar.gz files.
-#[cfg(feature = "gzip")]
+#[cfg(feature = "tar")]
 mod gzip {
     use std::fs::File;
 
@@ -47,7 +47,7 @@ mod gzip {
 }
 
 /// Decompressor for zip file.
-#[cfg(feature = "normal_zip")]
+#[cfg(feature = "zip")]
 mod zip {
     use std::fs::{File, create_dir_all};
     use std::io;
