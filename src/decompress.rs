@@ -4,6 +4,8 @@ pub trait Decompressor {
 }
 
 /// Methods for decompressing files.
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
 pub enum DecompressionMethod {
     #[cfg(feature = "tar")]
     TarGzip,
@@ -89,6 +91,8 @@ mod zip {
     }
 }
 /// Decompressor Configuration
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub struct DLDecompressionConfig {
     /// Decompression method
     pub method: DecompressionMethod,

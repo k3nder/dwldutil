@@ -6,6 +6,8 @@ use std::{
 use symlink::symlink_auto;
 
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub struct DLStorage {
     pub path: PathBuf,
 }
