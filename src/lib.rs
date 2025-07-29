@@ -20,6 +20,10 @@ pub mod indicator;
 pub mod decompress;
 mod redirection_middleware;
 
+fn _default_callback() -> Arc<dyn Fn(String) + Send + Sync> {
+    Arc::new(|_| {})
+}
+
 /// Struct in which all the files to be downloaded are set up
 pub struct Downloader<T: IndicatorFactory> {
     pub files: Vec<DLFile>,
@@ -27,7 +31,8 @@ pub struct Downloader<T: IndicatorFactory> {
     pub max_redirections: usize,
     indicator_factory: T,
 }
-
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 /// Struct in which they set the data in a file
 pub struct DLFile {
     /// Size of the file in bytes
@@ -42,12 +47,15 @@ pub struct DLFile {
     #[cfg(feature = "decompress")]
     pub decompression_config: Option<decompress::DLDecompressionConfig>,
     /// Event on download completion
+    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "serde", serde(default = "_default_callback"))]
     pub on_download: Arc<dyn Fn(String) + Send + Sync>,
     /// Unsing CAS
     #[cfg(feature = "cas")]
     pub cas: Option<cas::DLStorage>,
 }
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DLHashes {
     pub hashes: Vec<(DLHashType, String)>,
 }
@@ -97,6 +105,8 @@ impl DLHashes {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 #[derive(Debug, Clone)]
 pub enum DLHashType {
     SHA1,
